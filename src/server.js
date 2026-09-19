@@ -317,87 +317,96 @@ app.get(
 //
 // Header:
 // x-payment-secret: PAYMENT_WEBHOOK_SECRET
-//
-// Body:
-// {
-//   "orderId": "...",
-//   "amount": 300000,
-//   "status": "PAID"
-// }
-// ============================================================
+//"content": "NGUYENVANACKHT260919AUL3SXXX",
+//"amount": 250000
+app.post("/api/payment-confirm", (req, res) => {
+  if (!authPayment(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
-app.post(
-  "/api/payment-confirm",
-  (req, res) => {
+  const { content, amount } = req.body || {};
 
-    if (!authPayment(req)) {
-      return res.status(401).json({
-        error: "Unauthorized"
-      });
-    }
+  const transferContent = clean(content).toUpperCase();
+  const transferAmount = Number(amount);
 
-    const {
-      orderId,
-      amount,
-      status
-    } = req.body || {};
-
-    const order = db
-      .prepare(
-        "SELECT * FROM orders WHERE id=?"
-      )
-      .get(clean(orderId));
-
-    if (!order) {
-      return res.status(404).json({
-        error: "Order không tồn tại"
-      });
-    }
-
-    if (
-      Number(amount) !== Number(order.amount)
-    ) {
-      return res.status(400).json({
-        error: "Sai số tiền"
-      });
-    }
-
-    if (status !== "PAID") {
-      return res.status(400).json({
-        error: "Status không hợp lệ"
-      });
-    }
-
-    // Nếu đã PAID thì không cần xử lý lại
-    if (order.status !== "PAID") {
-      const paidAt = new Date().toISOString();
-
-      db.prepare(`
-        UPDATE orders
-        SET status='PAID',
-            paid_at=?
-        WHERE id=?
-      `).run(
-        paidAt,
-        order.id
-      );
-    }
-
-    const token = createDownloadToken(
-      order.id
-    );
-
-    res.json({
-      ok: true,
-      orderId: order.id,
-      status: "PAID",
-      downloadToken: token,
-      downloadUrl:
-        `/api/download/${encodeURIComponent(order.id)}` +
-        `?token=${encodeURIComponent(token)}`
+  if (!transferContent) {
+    return res.status(400).json({
+      error: "Thiếu nội dung chuyển khoản"
     });
   }
-);
+
+  if (!Number.isFinite(transferAmount) || transferAmount <= 0) {
+    return res.status(400).json({
+      error: "Số tiền không hợp lệ"
+    });
+  }
+
+  // Mã đơn hàng:
+  // HT + YYMMDD + 6 ký tự A-Z/0-9
+  //
+  // Ví dụ:
+  // HT260919AUL3S
+  //
+  // Có thể nằm ở bất kỳ vị trí nào trong nội dung:
+  // NGUYENVANACKHT260919AUL3SXXX
+
+  const match = transferContent.match(/HT\d{6}[A-Z0-9]{6}/);
+
+  if (!match) {
+    return res.status(400).json({
+      error: "Không tìm thấy mã đơn hàng",
+      content: transferContent
+    });
+  }
+
+  const orderId = match[0];
+
+  const order = db
+    .prepare("SELECT * FROM orders WHERE id=?")
+    .get(orderId);
+
+  if (!order) {
+    return res.status(404).json({
+      error: "Không tìm thấy đơn hàng",
+      orderId
+    });
+  }
+
+  // Chỉ chấp nhận số tiền nhận được >= giá trị đơn hàng
+  if (transferAmount < Number(order.amount)) {
+    return res.status(400).json({
+      error: "Số tiền thanh toán chưa đủ",
+      orderId,
+      requiredAmount: order.amount,
+      receivedAmount: transferAmount
+    });
+  }
+
+  if (order.status !== "PAID") {
+    const paidAt = new Date().toISOString();
+
+    db.prepare(`
+      UPDATE orders
+      SET status='PAID',
+          paid_at=?
+      WHERE id=?
+    `).run(paidAt, order.id);
+  }
+
+  const token = createDownloadToken(order.id);
+
+  res.json({
+    ok: true,
+    orderId: order.id,
+    status: "PAID",
+    requiredAmount: order.amount,
+    receivedAmount: transferAmount,
+    downloadToken: token,
+    downloadUrl:
+      `/api/download/${encodeURIComponent(order.id)}` +
+      `?token=${encodeURIComponent(token)}`
+  });
+});
 
 // ============================================================
 // API: Claim download
