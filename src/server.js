@@ -395,6 +395,8 @@ app.post("/api/payment-confirm", (req, res) => {
 
   const token = createDownloadToken(order.id);
 
+  const baseUrl = (process.env.BASE_URL || "").replace(/\/$/, "");
+
   res.json({
     ok: true,
     orderId: order.id,
@@ -403,7 +405,7 @@ app.post("/api/payment-confirm", (req, res) => {
     receivedAmount: transferAmount,
     downloadToken: token,
     downloadUrl:
-      `/api/download/${encodeURIComponent(order.id)}` +
+      `${baseUrl}/api/download/${encodeURIComponent(order.id)}` +
       `?token=${encodeURIComponent(token)}`
   });
 });
@@ -440,9 +442,11 @@ app.post(
       order.id
     );
 
+    const baseUrl = (process.env.BASE_URL || "").replace(/\/$/, "");
+
     res.json({
       downloadUrl:
-        `/api/download/${encodeURIComponent(order.id)}` +
+        `${baseUrl}/api/download/${encodeURIComponent(order.id)}` +
         `?token=${encodeURIComponent(token)}`
     });
   }
@@ -518,13 +522,9 @@ app.get(
         p.LinkFile
       );
 
-      if (
-        !linkFile.startsWith(
-          "https://drive.google.com/"
-        )
-      ) {
+      if (!linkFile.includes("google.com")) {
         return res.status(500).send(
-          "Link Google Drive không hợp lệ"
+          "Link Google không hợp lệ"
         );
       }
 
