@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Thanh toán & tải file - BuilderTV</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#20242a}
+    .wrap{max-width:620px;margin:30px auto;padding:16px}.card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 5px 25px #00000012}
+    h1{font-size:23px;margin:0 0 8px}.muted{color:#667085}.price{font-size:28px;font-weight:700;margin:16px 0}
+    .qr{display:block;width:300px;max-width:100%;margin:15px auto;border-radius:10px}.code{background:#f2f4f7;padding:12px;border-radius:8px;text-align:center;font-weight:700;word-break:break-all}
+    button{border:0;border-radius:10px;padding:13px 18px;font-size:16px;cursor:pointer;width:100%}
+    .primary{background:#111827;color:#fff}.success{background:#198754;color:#fff;text-decoration:none;display:block;text-align:center;padding:13px 18px;border-radius:10px}
+    .status{padding:12px;border-radius:10px;background:#fff7e6;margin:15px 0;text-align:center}.ok{background:#e8f7ee}
+    .zalo{border-top:1px solid #eee;margin-top:25px;padding-top:20px}.zalo input{width:100%;padding:13px;border:1px solid #d0d5dd;border-radius:9px;margin:8px 0 10px;font-size:16px}
+    .hidden{display:none}.video{margin-top:15px}.video a{color:#175cd3}
+  </style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <h1 id="ten">Đang tải...</h1>
+  <div class="muted" id="ma"></div>
+  <div class="price" id="gia"></div>
+  <div id="pay">
+    <img id="qr" class="qr" alt="QR thanh toán">
+    <div class="muted" style="text-align:center">Quét QR để thanh toán đúng số tiền</div>
+    <p class="muted" style="text-align:center">Nội dung chuyển khoản:</p>
+    <div class="code" id="order"></div>
+    <div class="status" id="status">⏳ Đang chờ thanh toán...</div>
+  </div>
+
+  <div id="downloadBox" class="hidden">
+    <div class="status ok">✓ Thanh toán thành công</div>
+    <a id="download" class="success" href="#">TẢI FILE</a>
+  </div>
+
+  <div id="error" class="status hidden"></div>
+
+  <div class="video hidden" id="videoBox"><a id="video" target="_blank" rel="noopener">▶ Xem video hướng dẫn</a></div>
+
+  <div class="zalo">
+    <b>Không tiện quét QR?</b>
+    <div class="muted">Nhập số Zalo để nhận thông tin thanh toán.</div>
+    <input id="phone" inputmode="tel" placeholder="Số điện thoại Zalo">
+    <button id="zaloBtn" class="primary">NHẬN THÔNG TIN QUA ZALO</button>
+    <div id="zaloMsg" class="muted" style="margin-top:8px"></div>
+  </div>
+</div></div>
+
+<script>
+const maFile = location.pathname.split("/").filter(Boolean).pop()?.toLowerCase();
+let orderId = null, timer = null;
+
+const money = n => new Intl.NumberFormat("vi-VN").format(n) + "đ";
+async function init(){
+  if(!maFile){ document.querySelector("#ten").textContent="Không có mã sản phẩm"; return; }
+  try{
+    const r=await fetch("/api/product/"+encodeURIComponent(maFile));
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||"Không tìm thấy sản phẩm");
+    document.querySelector("#ten").textContent=d.ten;
+    document.querySelector("#ma").textContent="Mã: "+d.maFile;
+    document.querySelector("#gia").textContent=money(d.gia);
+    document.querySelector("#qr").src=d.qr;
+    document.querySelector("#order").textContent=d.orderId;
+    orderId=d.orderId;
+    if(d.linkVideo){document.querySelector("#videoBox").classList.remove("hidden");document.querySelector("#video").href=d.linkVideo;}
+    timer=setInterval(check,3000); check();
+  }catch(e){showError(e.message)}
+}
+async function check(){
+  if(!orderId)return;
+  const r=await fetch("/api/order/"+encodeURIComponent(orderId)+"/status");
+  if(!r.ok)return;
+  const d=await r.json();
+  if(d.status==="PAID"){
+    clearInterval(timer);
+    document.querySelector("#status").textContent="✓ Đã nhận thanh toán";
+    const x=await fetch("/api/order/"+encodeURIComponent(orderId)+"/claim-download",{method:"POST"});
+    const v=await x.json();
+    if(x.ok){
+      document.querySelector("#pay").classList.add("hidden");
+      document.querySelector("#downloadBox").classList.remove("hidden");
+      document.querySelector("#download").href=v.downloadUrl;
+    }
+  }
+}
+function showError(s){const e=document.querySelector("#error");e.textContent=s;e.classList.remove("hidden");}
+document.querySelector("#zaloBtn").onclick=async()=>{
+  const msg=document.querySelector("#zaloMsg"); msg.textContent="Đang gửi...";
+  const phone=document.querySelector("#phone").value.trim();
+  try{
+    const r=await fetch("/api/zalo-request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({maFile,soDienThoai:phone})});
+    const d=await r.json(); if(!r.ok)throw new Error(d.error||"Có lỗi");
+    msg.textContent="✓ Đã gửi yêu cầu. Kiểm tra Zalo.";
+  }catch(e){msg.textContent=e.message}
+};
+init();
+</script>
+</body>
+</html>
