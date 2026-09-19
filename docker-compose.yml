@@ -1,0 +1,12 @@
+services:
+  gs-payment:
+    build: .
+    container_name: gs-payment
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3010:3000"
+    volumes:
+      - ./data:/app/data
+      - ./credentials:/app/credentials:ro
