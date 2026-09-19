@@ -117,7 +117,17 @@ function makeOrderId() {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
 
-  return `HT${yy}${mm}${dd}-${nanoid(6).toUpperCase()}`;
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+  let random = "";
+
+  for (let i = 0; i < 6; i++) {
+    random += chars[
+      crypto.randomInt(0, chars.length)
+    ];
+  }
+
+  return `HT${yy}${mm}${dd}${random}`;
 }
 
 // ============================================================
