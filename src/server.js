@@ -250,11 +250,11 @@ app.get("/api/product/:maFile", async (req, res) => {
     );
 
     const qr =
-      `https://img.vietqr.io/image/` +
-      `${bankCode}-${bankAccount}-compact2.png` +
-      `?amount=${p.Gia}` +
-      `&addInfo=${addInfo}` +
-      `&accountName=${accountName}`;
+    `https://img.vietqr.io/image/` +
+    `${bankCode}-${bankAccount}-compact2.png` +
+    `?amount=${p.Gia}` +
+    `&addInfo=${encodeURIComponent(p.MaFile + addInfo)}` +
+    `&accountName=${encodeURIComponent(accountName)}`;
 
     // LƯU Ý:
     // Không trả LinkFile về frontend.
